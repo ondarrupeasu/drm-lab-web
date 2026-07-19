@@ -1,0 +1,350 @@
+<meta charset="utf-8">
+<title>La cadena del DRM · Laboratorio</title>
+<style>
+  :root{
+    --bg:#0e1116; --bg2:#0a0d12; --panel:#161b23; --panel2:#1b212b;
+    --line:#28313f; --line2:#38445600;
+    --ink:#e8edf4; --dim:#8b98ac; --faint:#5b6675;
+    --amber:#f2a03d;   /* protegido / cifrado */
+    --teal:#35d0ba;    /* señal en claro */
+    --red:#e5484d;     /* puerta HDCP */
+    --lime:#c7e86b;    /* clave */
+    --shadow: 0 1px 0 #ffffff08, 0 12px 40px #0009;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  :root[data-theme="light"]{
+    --bg:#eef1f5; --bg2:#e4e8ee; --panel:#ffffff; --panel2:#f4f6f9;
+    --line:#d3dae3; --line2:#c3ccd800;
+    --ink:#182029; --dim:#5a6675; --faint:#95a1b0;
+    --amber:#c9761a; --teal:#0f9b88; --red:#cf3b40; --lime:#5f7a12;
+    --shadow: 0 1px 0 #ffffff, 0 10px 30px #1a2a4014;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#eef1f5; --bg2:#e4e8ee; --panel:#ffffff; --panel2:#f4f6f9;
+      --line:#d3dae3; --ink:#182029; --dim:#5a6675; --faint:#95a1b0;
+      --amber:#c9761a; --teal:#0f9b88; --red:#cf3b40; --lime:#5f7a12;
+      --shadow: 0 1px 0 #ffffff, 0 10px 30px #1a2a4014;
+    }
+  }
+
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:
+      radial-gradient(1200px 600px at 15% -10%, #1a2334 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink); font-family:var(--sans); -webkit-font-smoothing:antialiased;
+    line-height:1.55; }
+  :root[data-theme="light"] body, :root:not([data-theme="dark"]) body{ background:
+      radial-gradient(1200px 600px at 15% -10%, #dbe4f1 0%, transparent 55%), var(--bg); }
+
+  .shell{ max-width:1120px; margin:0 auto; padding:28px 22px 64px; }
+
+  /* ---- header ---- */
+  header{ display:flex; flex-wrap:wrap; align-items:flex-end; gap:18px 28px; justify-content:space-between;
+    border-bottom:1px solid var(--line); padding-bottom:20px; }
+  .brand .eyebrow{ font-family:var(--mono); font-size:11px; letter-spacing:.28em; text-transform:uppercase;
+    color:var(--amber); margin:0 0 8px; }
+  h1{ font-size:clamp(26px,4.4vw,42px); line-height:1.02; margin:0; letter-spacing:-.02em; font-weight:800;
+    text-wrap:balance; }
+  h1 em{ font-style:normal; color:var(--teal); }
+  .lede{ color:var(--dim); max-width:46ch; margin:10px 0 0; font-size:15px; }
+
+  .controls{ display:flex; gap:10px; flex-wrap:wrap; }
+  .toggle{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:9px 12px;
+    display:flex; flex-direction:column; gap:7px; min-width:132px; box-shadow:var(--shadow); }
+  .toggle .lab{ font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); }
+  .seg{ display:flex; background:var(--bg2); border:1px solid var(--line); border-radius:8px; padding:2px; gap:2px; }
+  .seg button{ flex:1; border:0; background:transparent; color:var(--dim); font-family:var(--mono); font-size:12px;
+    padding:5px 8px; border-radius:6px; cursor:pointer; transition:.14s; font-weight:600; }
+  .seg button[aria-pressed="true"]{ background:var(--panel2); color:var(--ink); box-shadow:inset 0 0 0 1px var(--line); }
+  .seg.lvl button[aria-pressed="true"][data-v="L1"]{ color:var(--teal); }
+  .seg.lvl button[aria-pressed="true"][data-v="L3"]{ color:var(--amber); }
+  .seg.hdcp button[aria-pressed="true"][data-v="on"]{ color:var(--teal); }
+  .seg.hdcp button[aria-pressed="true"][data-v="off"]{ color:var(--red); }
+
+  /* ---- pipeline ---- */
+  .stage-scroll{ overflow-x:auto; margin:30px -22px 0; padding:4px 22px 14px; }
+  .pipe{ position:relative; display:grid; grid-auto-flow:column; grid-auto-columns:minmax(112px,1fr);
+    gap:0; min-width:860px; }
+  .wire{ position:absolute; left:56px; right:56px; top:56px; height:3px; border-radius:3px;
+    background:linear-gradient(90deg,var(--amber) 0%, var(--amber) 48%, var(--teal) 58%, var(--teal) 100%);
+    opacity:.30; }
+  .packet{ position:absolute; top:52px; width:12px; height:12px; border-radius:50%; background:var(--amber);
+    box-shadow:0 0 0 4px color-mix(in srgb, var(--amber) 30%, transparent), 0 0 16px var(--amber);
+    transform:translate(-50%,0); will-change:left, background; z-index:3; }
+
+  .stage{ position:relative; text-align:center; padding:0 6px; cursor:pointer; background:transparent; border:0;
+    font-family:inherit; color:inherit; z-index:2; }
+  .dot{ width:44px; height:44px; margin:34px auto 12px; border-radius:13px; display:grid; place-items:center;
+    background:var(--panel); border:1px solid var(--line); box-shadow:var(--shadow); transition:.18s;
+    position:relative; }
+  .dot svg{ width:22px; height:22px; stroke-width:1.6; }
+  .stage .nm{ font-size:12.5px; font-weight:700; letter-spacing:-.01em; display:block; }
+  .stage .sub{ font-family:var(--mono); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--faint); margin-top:3px; display:block; }
+  .stage[aria-selected="true"] .dot{ border-color:var(--sel); transform:translateY(-3px);
+    box-shadow:0 0 0 1px var(--sel), 0 10px 26px #0007; }
+  .stage[aria-selected="true"] .nm{ color:var(--sel); }
+  .stage:focus-visible{ outline:none; }
+  .stage:focus-visible .dot{ outline:2px solid var(--teal); outline-offset:3px; }
+  .stage .dot{ color:var(--dim); }
+  .stage.enc .dot{ --sel:var(--amber); }
+  .stage.clear .dot{ --sel:var(--teal); }
+  .stage.gate .dot{ --sel:var(--red); }
+  /* zone glyphs under the wire */
+  .zoneband{ display:grid; grid-auto-flow:column; grid-auto-columns:minmax(112px,1fr); min-width:860px; margin-top:2px; }
+  .zone{ font-family:var(--mono); font-size:9px; letter-spacing:.14em; text-transform:uppercase; text-align:center;
+    color:var(--faint); position:relative; padding-top:8px; }
+
+  /* ---- detail + output ---- */
+  .grid{ display:grid; grid-template-columns:1.35fr 1fr; gap:16px; margin-top:26px; align-items:start; }
+  @media (max-width:760px){ .grid{ grid-template-columns:1fr; } }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px 22px; box-shadow:var(--shadow); }
+  .card h2{ font-size:11px; font-family:var(--mono); letter-spacing:.2em; text-transform:uppercase; color:var(--dim);
+    margin:0 0 14px; display:flex; align-items:center; gap:9px; }
+  .tag{ font-family:var(--mono); font-size:10px; padding:2px 8px; border-radius:999px; border:1px solid currentColor; font-weight:600; }
+  .tag.enc{ color:var(--amber); } .tag.clear{ color:var(--teal); } .tag.gate{ color:var(--red); }
+  #d-title{ font-size:21px; font-weight:800; letter-spacing:-.01em; margin:0 0 6px; text-wrap:balance; }
+  #d-body{ color:var(--ink); margin:0 0 16px; font-size:15px; }
+  .row{ display:flex; gap:10px; padding:10px 0; border-top:1px solid var(--line); font-size:13.5px; }
+  .row .k{ font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim);
+    width:112px; flex:none; padding-top:2px; }
+  .row .v{ color:var(--ink); }
+  .row .v b{ color:var(--teal); font-weight:700; }
+  .attacker{ color:var(--amber); }
+
+  /* output monitor */
+  .monitor{ aspect-ratio:16/9; border-radius:12px; border:1px solid var(--line); overflow:hidden; position:relative;
+    background:#05070a; display:grid; place-items:center; }
+  .bars{ position:absolute; inset:0; display:flex; }
+  .bars i{ flex:1; }
+  .bars i:nth-child(1){background:#c0c0c0}.bars i:nth-child(2){background:#c0c020}.bars i:nth-child(3){background:#20c0c0}
+  .bars i:nth-child(4){background:#20c020}.bars i:nth-child(5){background:#c020c0}.bars i:nth-child(6){background:#c02020}.bars i:nth-child(7){background:#2020c0}
+  .monitor .veil{ position:absolute; inset:0; background:#04060a; display:grid; place-items:center; transition:opacity .25s;
+    color:var(--red); font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-align:center; gap:6px; }
+  .monitor .res{ position:absolute; left:10px; bottom:9px; font-family:var(--mono); font-size:11px; letter-spacing:.1em;
+    color:#eaf6ff; background:#0008; padding:3px 8px; border-radius:6px; z-index:4; }
+  .out-list{ margin:14px 0 0; }
+  .out-list .row .v.ok{ color:var(--teal); font-weight:700; }
+  .out-list .row .v.bad{ color:var(--red); font-weight:700; }
+
+  footer{ margin-top:30px; border-top:1px solid var(--line); padding-top:16px; color:var(--dim); font-size:12.5px;
+    display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  footer .mono{ font-family:var(--mono); color:var(--faint); }
+  a.link{ color:var(--teal); text-decoration:none; border-bottom:1px solid color-mix(in srgb,var(--teal) 40%, transparent); }
+
+  @media (prefers-reduced-motion: reduce){ .packet{ transition:none !important; animation:none !important; } }
+</style>
+
+<div class="shell">
+  <header>
+    <div class="brand">
+      <p class="eyebrow">Laboratorio DRM · realización A/V</p>
+      <h1>La cadena del <em>DRM</em>, de punta a punta</h1>
+      <p class="lede">Cómo viaja un vídeo protegido: se cifra, se pide una licencia, un CDM lo
+        descifra en zona segura y HDCP gatea la salida. Pulsa cada etapa. Cambia el nivel y HDCP
+        y mira qué llega a la pantalla.</p>
+    </div>
+    <div class="controls">
+      <div class="toggle">
+        <span class="lab">Nivel Widevine</span>
+        <div class="seg lvl" role="group" aria-label="Nivel de seguridad">
+          <button data-v="L1" aria-pressed="true">L1 · hardware</button>
+          <button data-v="L3" aria-pressed="false">L3 · software</button>
+        </div>
+      </div>
+      <div class="toggle">
+        <span class="lab">Salida HDCP</span>
+        <div class="seg hdcp" role="group" aria-label="Estado HDCP">
+          <button data-v="on" aria-pressed="true">Activo</button>
+          <button data-v="off" aria-pressed="false">Roto</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="stage-scroll">
+    <div class="pipe" id="pipe">
+      <div class="wire"></div>
+      <div class="packet" id="packet"></div>
+      <!-- stages injected -->
+    </div>
+    <div class="zoneband" id="zoneband"></div>
+  </div>
+
+  <div class="grid">
+    <section class="card" aria-live="polite">
+      <h2>Detalle de la etapa <span class="tag" id="d-tag">—</span></h2>
+      <p id="d-title">Selecciona una etapa</p>
+      <p id="d-body">La cadena está codificada por colores: <span style="color:var(--amber)">ámbar = cifrado / protegido</span>,
+        <span style="color:var(--teal)">teal = señal en claro</span>, <span style="color:var(--red)">rojo = la puerta HDCP</span>.</p>
+      <div class="row"><span class="k">Qué es</span><span class="v" id="d-what">—</span></div>
+      <div class="row"><span class="k">Qué ve un atacante</span><span class="v attacker" id="d-att">—</span></div>
+      <div class="row"><span class="k">En el player</span><span class="v" id="d-lab">—</span></div>
+    </section>
+
+    <aside class="card">
+      <h2>Salida a pantalla</h2>
+      <div class="monitor">
+        <div class="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="veil" id="veil" style="opacity:0"></div>
+        <div class="res" id="res">1280×720</div>
+      </div>
+      <div class="out-list">
+        <div class="row"><span class="k">Nivel</span><span class="v" id="o-lvl">L1 · hardware seguro</span></div>
+        <div class="row"><span class="k">Ruta de descifrado</span><span class="v" id="o-path">TEE / hardware</span></div>
+        <div class="row"><span class="k">Resolución máx.</span><span class="v" id="o-res">hasta 4K / 2160p</span></div>
+        <div class="row"><span class="k">HDCP</span><span class="v" id="o-hdcp">—</span></div>
+        <div class="row"><span class="k">Imagen</span><span class="v" id="o-img">—</span></div>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    <span>Marco: sólo contenido propio o assets de test públicos. No se elude ningún servicio de pago.</span>
+    <span class="mono">clear-key · CENC · EME/MSE · Widevine L1/L3 · HDCP</span>
+  </footer>
+</div>
+
+<script>
+const I = {
+  film:'<path d="M4 4h16v16H4z"/><path d="M4 9h16M4 15h16M9 4v16M15 4v16"/>',
+  lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  server:'<rect x="4" y="4" width="16" height="7" rx="1.5"/><rect x="4" y="13" width="16" height="7" rx="1.5"/><path d="M8 7.5h.01M8 16.5h.01"/>',
+  globe:'<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 2.5 2.5 13 0 16M12 4c-2.5 2.5-2.5 13 0 16"/>',
+  chip:'<rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/>',
+  frames:'<rect x="3" y="6" width="13" height="12" rx="1.5"/><path d="M19 8v8l2-2V10z"/>',
+  gate:'<path d="M4 20V6l8-2 8 2v14"/><path d="M4 20h16M9 20v-8h6v8"/>',
+  screen:'<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/>'
+};
+const STAGES = [
+  { id:'src', cls:'clear', ic:'film', nm:'Contenido', sub:'mezzanine', zone:'en claro',
+    tag:'clear', title:'El vídeo original, en claro',
+    what:'El clip propio recién exportado. Todavía sin proteger: cualquiera lo abre.',
+    att:'Acceso total — es el máster sin candado.',
+    lab:'content/mezz/*.mp4 antes de empaquetar.' },
+  { id:'pack', cls:'enc', ic:'lock', nm:'Cifrado', sub:'CENC pack', zone:'cifrado',
+    tag:'enc', title:'Empaquetado y cifrado (CENC)',
+    what:'shaka-packager trocea a DASH y cifra cada segmento con AES (Common Encryption). A partir de aquí el vídeo viaja cifrado.',
+    att:'Sólo ve ruido: los .m4s son ilegibles sin la clave.',
+    lab:'scripts/package-clearkey.sh → default_KID en el manifest.mpd.' },
+  { id:'lic', cls:'enc', ic:'server', nm:'Servidor licencias', sub:'key store', zone:'cifrado',
+    tag:'enc', title:'El servidor de licencias guarda la clave',
+    what:'La clave de descifrado vive aquí, no en el archivo. Entrega la licencia sólo a clientes autorizados. En clear-key es un "servidor" mínimo que controlamos.',
+    att:'La clave no está en el contenido: hay que pedírsela al servidor.',
+    lab:'clearKeys { deadbeef… : 0123… } — nuestra licencia de laboratorio.' },
+  { id:'eme', cls:'enc', ic:'globe', nm:'EME · navegador', sub:'MSE fetch', zone:'cifrado',
+    tag:'enc', title:'EME + MSE: el navegador orquesta',
+    what:'Media Source Extensions pide los segmentos por trozos (bitrate adaptativo). Encrypted Media Extensions detecta el cifrado y lanza la petición de licencia hacia el CDM.',
+    att:'Ve tráfico cifrado y una petición de licencia; nada de vídeo en claro.',
+    lab:'Evento encrypted en DevTools; segmentos .m4s en Network.' },
+  { id:'cdm', cls:'clear', ic:'chip', nm:'CDM', sub:'descifra', zone:'descifra · zona segura',
+    tag:'clear', title:'El CDM descifra — la caja negra',
+    what:'El Content Decryption Module recibe la clave y descifra dentro de una zona protegida. Aquí la señal pasa de cifrada a clara. En Widevine real, la clave nunca sale de esta caja.',
+    att:'En clear-key la clave se ve; en Widevine el CDM la esconde: no se puede extraer.',
+    lab:'key system org.w3.clearkey — cambia a hardware en L1.' },
+  { id:'dec', cls:'clear', ic:'frames', nm:'Decodifica', sub:'frames', zone:'en claro',
+    tag:'clear', title:'Decodificación a fotogramas',
+    what:'Ya descifrado, el códec (H.264/HEVC) reconstruye los fotogramas. En L1 esto ocurre también en hardware seguro; en L3 en software, y por eso se limita la resolución.',
+    att:'Frames en memoria protegida — inaccesibles si la ruta es segura.',
+    lab:'Panel del player: resolución y bitrate activos.' },
+  { id:'hdcp', cls:'gate', ic:'gate', nm:'HDCP', sub:'puerta', zone:'puerta de salida',
+    tag:'gate', title:'HDCP: la puerta del cable',
+    what:'Antes de salir por HDMI, el enlace negocia HDCP. Si el handshake falla o la pantalla no cumple, se baja la resolución o se corta la imagen — aunque la licencia sea válida.',
+    att:'Protege el cable, no el archivo: es el último eslabón, ya fuera del DRM.',
+    lab:'El aviso de HDCP que ya visteis en MixR.' },
+  { id:'scr', cls:'clear', ic:'screen', nm:'Pantalla', sub:'salida', zone:'',
+    tag:'clear', title:'La imagen, por fin',
+    what:'Si todo encaja —licencia válida, CDM ok, HDCP negociado— el vídeo se ve. Cambia los toggles para romper la cadena y observa qué llega aquí.',
+    att:'Lo que se proyecta. El objetivo protegido de toda la cadena.',
+    lab:'La ventana de vídeo de player/index.html.' },
+];
+
+const pipe = document.getElementById('pipe');
+const zoneband = document.getElementById('zoneband');
+STAGES.forEach((s,i)=>{
+  const b = document.createElement('button');
+  b.className = 'stage '+s.cls; b.dataset.i=i; b.setAttribute('role','tab'); b.setAttribute('aria-selected','false');
+  b.innerHTML = `<span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${I[s.ic]}</svg></span>
+     <span class="nm">${s.nm}</span><span class="sub">${s.sub}</span>`;
+  b.addEventListener('click', ()=> select(i));
+  pipe.appendChild(b);
+  const z = document.createElement('div'); z.className='zone'; z.textContent = s.zone; zoneband.appendChild(z);
+});
+
+const el = id => document.getElementById(id);
+let selected = -1;
+function select(i){
+  selected = i;
+  const s = STAGES[i];
+  document.querySelectorAll('.stage').forEach((n,k)=> n.setAttribute('aria-selected', k===i));
+  el('d-tag').className = 'tag '+s.tag;
+  el('d-tag').textContent = s.tag==='enc'?'cifrado':s.tag==='gate'?'puerta':'en claro';
+  el('d-title').textContent = s.title;
+  el('d-body').textContent = s.what;
+  el('d-what').textContent = s.what;
+  el('d-att').textContent = s.att;
+  el('d-lab').textContent = s.lab;
+  movePacketTo(i);
+}
+
+/* packet animation along the wire */
+const packet = document.getElementById('packet');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function centerOf(i){
+  const st = document.querySelectorAll('.stage')[i];
+  const dot = st.querySelector('.dot');
+  const pr = pipe.getBoundingClientRect(), dr = dot.getBoundingClientRect();
+  return dr.left - pr.left + dr.width/2;
+}
+function colorAt(i){ return STAGES[i].cls==='enc' ? getVar('--amber') : STAGES[i].cls==='gate' ? getVar('--red') : getVar('--teal'); }
+function getVar(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function movePacketTo(i){
+  packet.style.left = centerOf(i)+'px';
+  packet.style.background = colorAt(i);
+  packet.style.boxShadow = `0 0 0 4px color-mix(in srgb, ${colorAt(i)} 30%, transparent), 0 0 16px ${colorAt(i)}`;
+}
+// ambient loop through the chain
+let ac=0, timer=null;
+function ambient(){
+  if(reduce) return;
+  timer = setInterval(()=>{ if(selected>-1) return; ac=(ac+1)%STAGES.length;
+    packet.style.transition='left .9s cubic-bezier(.5,0,.2,1), background .5s'; movePacketTo(ac); }, 1100);
+}
+packet.style.transition='left .5s cubic-bezier(.5,0,.2,1), background .35s';
+
+/* toggles → output monitor */
+let level='L1', hdcp='on';
+function refresh(){
+  const o_lvl=el('o-lvl'), o_path=el('o-path'), o_res=el('o-res'), o_hdcp=el('o-hdcp'), o_img=el('o-img'),
+        veil=el('veil'), res=el('res');
+  if(level==='L1'){ o_lvl.textContent='L1 · hardware seguro'; o_path.textContent='TEE / hardware'; o_res.textContent='hasta 4K / 2160p'; }
+  else { o_lvl.textContent='L3 · software'; o_path.textContent='software (sin ruta segura)'; o_res.textContent='limitada a 480p'; }
+
+  let show=true, resText='', veilText='';
+  if(hdcp==='off'){
+    o_hdcp.innerHTML='<span class="bad">handshake roto</span>';
+    // encrypted output link fails: black or downgrade
+    show=false; veilText='SIN SEÑAL · HDCP<br>salida bloqueada'; resText='—';
+  } else {
+    o_hdcp.innerHTML='<span class="ok">activo · enlace cifrado</span>';
+    if(level==='L1'){ resText='3840×2160'; }
+    else { resText='854×480'; }
+  }
+  if(show){
+    o_img.innerHTML='<span class="ok">se ve</span>'; veil.style.opacity=0; res.textContent=resText;
+  } else {
+    o_img.innerHTML='<span class="bad">negro / cortada</span>'; veil.innerHTML=veilText; veil.style.opacity=1; res.textContent=resText;
+  }
+}
+document.querySelectorAll('.seg.lvl button').forEach(b=> b.addEventListener('click', ()=>{
+  level=b.dataset.v; document.querySelectorAll('.seg.lvl button').forEach(x=>x.setAttribute('aria-pressed', x===b)); refresh();
+}));
+document.querySelectorAll('.seg.hdcp button').forEach(b=> b.addEventListener('click', ()=>{
+  hdcp=b.dataset.v; document.querySelectorAll('.seg.hdcp button').forEach(x=>x.setAttribute('aria-pressed', x===b)); refresh();
+}));
+
+addEventListener('resize', ()=>{ if(selected>-1) movePacketTo(selected); });
+requestAnimationFrame(()=>{ movePacketTo(0); refresh(); ambient(); });
+</script>

@@ -1,0 +1,84 @@
+<meta charset="utf-8">
+<title>Laboratorio DRM · Cinemafilmak</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b23; --panel2:#1b212b; --line:#28313f;
+    --ink:#e8edf4; --dim:#8b98ac; --faint:#5b6675;
+    --amber:#f2a03d; --teal:#35d0ba; --red:#e5484d;
+    --mono: ui-monospace,"SF Mono","SFMono-Regular",Menlo,Consolas,monospace;
+    --sans: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --shadow:0 1px 0 #ffffff08, 0 14px 42px #0009;
+  }
+  :root[data-theme="light"]{
+    --bg:#eef1f5; --panel:#fff; --panel2:#f4f6f9; --line:#d3dae3;
+    --ink:#182029; --dim:#5a6675; --faint:#95a1b0;
+    --amber:#c9761a; --teal:#0f9b88; --red:#cf3b40; --shadow:0 1px 0 #fff, 0 10px 30px #1a2a4014;
+  }
+  @media (prefers-color-scheme:light){ :root:not([data-theme="dark"]){
+    --bg:#eef1f5; --panel:#fff; --panel2:#f4f6f9; --line:#d3dae3;
+    --ink:#182029; --dim:#5a6675; --faint:#95a1b0;
+    --amber:#c9761a; --teal:#0f9b88; --red:#cf3b40; --shadow:0 1px 0 #fff, 0 10px 30px #1a2a4014; } }
+  *{ box-sizing:border-box; }
+  body{ margin:0; font-family:var(--sans); color:var(--ink); line-height:1.55;
+    background:radial-gradient(1100px 560px at 12% -12%, #1a2334 0%, transparent 55%), var(--bg); }
+  :root[data-theme="light"] body, :root:not([data-theme="dark"]) body{
+    background:radial-gradient(1100px 560px at 12% -12%, #dbe4f1 0%, transparent 55%), var(--bg); }
+  .shell{ max-width:960px; margin:0 auto; padding:34px 22px 70px; }
+  .eyebrow{ font-family:var(--mono); font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--amber); margin:0 0 10px; }
+  h1{ font-size:clamp(28px,5vw,46px); margin:0; letter-spacing:-.02em; font-weight:800; line-height:1.03; text-wrap:balance; }
+  h1 em{ font-style:normal; color:var(--teal); }
+  .lede{ color:var(--dim); max-width:60ch; margin:12px 0 0; font-size:15.5px; }
+  .cards{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:30px 0 0; }
+  @media (max-width:640px){ .cards{ grid-template-columns:1fr; } }
+  a.card{ display:block; text-decoration:none; color:inherit; background:var(--panel); border:1px solid var(--line);
+    border-radius:16px; padding:22px; box-shadow:var(--shadow); transition:.16s; }
+  a.card:hover{ transform:translateY(-3px); border-color:var(--teal); }
+  a.card:focus-visible{ outline:2px solid var(--teal); outline-offset:3px; }
+  .card .ic{ width:46px; height:46px; border-radius:13px; display:grid; place-items:center; margin-bottom:14px;
+    background:var(--panel2); border:1px solid var(--line); }
+  .card .ic svg{ width:24px; height:24px; stroke-width:1.6; }
+  .card.viz .ic{ color:var(--teal); } .card.play .ic{ color:var(--amber); }
+  .card h2{ font-size:19px; margin:0 0 6px; letter-spacing:-.01em; }
+  .card p{ color:var(--dim); font-size:14px; margin:0 0 12px; }
+  .card .go{ font-family:var(--mono); font-size:12px; letter-spacing:.06em; color:var(--teal); }
+  .card.play .go{ color:var(--amber); }
+  .tags{ display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .tags span{ font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint);
+    border:1px solid var(--line); border-radius:999px; padding:3px 9px; }
+  .note{ margin-top:26px; padding:16px 18px; border:1px solid var(--line); border-left:3px solid var(--amber);
+    border-radius:12px; background:var(--panel); color:var(--dim); font-size:13.5px; }
+  .note b{ color:var(--ink); }
+  footer{ margin-top:28px; color:var(--faint); font-family:var(--mono); font-size:11.5px; letter-spacing:.08em; }
+</style>
+
+<div class="shell">
+  <p class="eyebrow">Cinemafilmak · aula de realización A/V</p>
+  <h1>Laboratorio <em>DRM</em></h1>
+  <p class="lede">Cómo funciona el DRM del streaming moderno de punta a punta: el vídeo se cifra,
+    un servidor entrega la licencia, un CDM lo descifra en zona segura y HDCP gatea la salida.
+    Dos piezas: el mapa interactivo de la cadena y el laboratorio en vivo con Shaka Player.</p>
+
+  <div class="cards">
+    <a class="card viz" href="cadena.html">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-7 4 14 2-7h6"/></svg></span>
+      <h2>La cadena, paso a paso</h2>
+      <p>Mapa interactivo: pulsa cada etapa y cambia el nivel (L1/L3) y HDCP para ver qué llega a la pantalla.</p>
+      <span class="go">Abrir visualización →</span>
+      <div class="tags"><span>CENC</span><span>EME · CDM</span><span>L1/L3</span><span>HDCP</span></div>
+    </a>
+    <a class="card play" href="player.html">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5v14l11-7z"/></svg></span>
+      <h2>Laboratorio en vivo</h2>
+      <p>Shaka Player con 3 fases: sin cifrar, clear-key con clave, y sin la clave → negro. Con log EME en directo.</p>
+      <span class="go">Abrir reproductor →</span>
+      <div class="tags"><span>Shaka</span><span>DASH · MSE</span><span>clear-key</span></div>
+    </a>
+  </div>
+
+  <p class="note"><b>Marco:</b> laboratorio educativo con contenido propio de prueba. No se captura
+    ni se elude ningún servicio de pago — Widevine se explica de forma conceptual. El objetivo es
+    entender la tecnología y sus límites.</p>
+
+  <footer>DRM LAB · contenido y código propios · realización A/V</footer>
+</div>

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DRM LAB · Shaka Player</title>
+  <link rel="stylesheet" href="vendor/controls.css" />
+  <script src="vendor/shaka-player.ui.js"></script>
+  <style>
+    :root { --bg:#0d0f14; --panel:#161a22; --line:#252b36; --ink:#e7ecf3; --dim:#8a94a6; --accent:#ff4d4d; --ok:#39d98a; --warn:#ffb020; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+    header { padding:14px 18px; border-bottom:1px solid var(--line); display:flex; align-items:baseline; gap:12px; }
+    header h1 { font-size:16px; margin:0; letter-spacing:.5px; }
+    header .sub { color:var(--dim); font-size:12px; }
+    .wrap { display:grid; grid-template-columns: 1fr 380px; gap:16px; padding:16px; align-items:start; }
+    @media (max-width: 900px){ .wrap{ grid-template-columns:1fr; } }
+    .video-col { min-width:0; }
+    #video-container { width:100%; aspect-ratio:16/9; background:#000; border-radius:10px; overflow:hidden; border:1px solid var(--line); }
+    video { width:100%; height:100%; }
+    .phases { display:flex; gap:8px; margin:12px 0; flex-wrap:wrap; }
+    .phase { flex:1 1 auto; min-width:150px; text-align:left; padding:10px 12px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; transition:.15s; }
+    .phase:hover { border-color:#3a4252; }
+    .phase.active { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+    .phase b { display:block; font-size:13px; }
+    .phase small { color:var(--dim); font-size:11px; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+    .panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.8px; color:var(--dim); margin:0 0 10px; }
+    .stat { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px dashed var(--line); font-variant-numeric:tabular-nums; }
+    .stat:last-child { border-bottom:0; }
+    .stat span:first-child { color:var(--dim); }
+    .key { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; word-break:break-all; }
+    #log { margin-top:16px; height:260px; overflow:auto; background:#0a0c11; border:1px solid var(--line); border-radius:8px; padding:10px; font-family:ui-monospace,Menlo,monospace; font-size:11px; }
+    #log div { padding:1px 0; border-bottom:1px solid #12161d; white-space:pre-wrap; }
+    .t-seg { color:var(--dim); } .t-mpd { color:#7db4ff; } .t-eme { color:var(--warn); } .t-key { color:var(--ok); } .t-err { color:var(--accent); } .t-info{color:var(--ink);}
+    .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; border:1px solid var(--line); }
+    .badge.enc { color:var(--warn); border-color:var(--warn); }
+    .badge.clear { color:var(--ok); border-color:var(--ok); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🔐 DRM LAB</h1>
+    <span class="sub">Shaka Player · EME/CENC/clear-key · contenido propio de laboratorio</span>
+  </header>
+
+  <div class="wrap">
+    <div class="video-col">
+      <div id="video-container" data-shaka-player-container>
+        <video id="video" autoplay data-shaka-player></video>
+      </div>
+
+      <div class="phases">
+        <button class="phase active" data-phase="plain">
+          <b>1 · Sin cifrar</b><small>DASH + MSE. Adaptativo, sin candado.</small>
+        </button>
+        <button class="phase" data-phase="clearkey">
+          <b>2 · Clear-key (con clave)</b><small>Cifrado CENC. Tenemos la clave → descifra.</small>
+        </button>
+        <button class="phase" data-phase="noekey">
+          <b>2b · Sin la clave</b><small>Mismo vídeo cifrado, sin clave → negro.</small>
+        </button>
+      </div>
+      <div id="log"><div class="t-info">Esperando carga…</div></div>
+    </div>
+
+    <aside class="panel">
+      <h2>Estado</h2>
+      <div class="stat"><span>Fase</span><b id="s-phase">—</b></div>
+      <div class="stat"><span>Contenido</span><b id="s-enc"><span class="badge clear">en claro</span></b></div>
+      <div class="stat"><span>Resolución actual</span><b id="s-res">—</b></div>
+      <div class="stat"><span>Bitrate</span><b id="s-br">—</b></div>
+      <div class="stat"><span>Buffer</span><b id="s-buf">—</b></div>
+      <div class="stat"><span>DRM / key system</span><b id="s-drm">ninguno</b></div>
+      <div style="margin-top:12px">
+        <h2>Clave del laboratorio</h2>
+        <div class="stat"><span>KEY_ID</span></div>
+        <div class="key" id="s-kid">—</div>
+        <div class="stat" style="margin-top:6px"><span>KEY</span></div>
+        <div class="key" id="s-key">—</div>
+      </div>
+    </aside>
+  </div>
+
+<script>
+const KEY_ID = "deadbeefdeadbeefdeadbeefdeadbeef";
+const KEY    = "0123456789abcdef0123456789abcdef";
+
+const MANIFESTS = {
+  plain:    { url: "content/dash/plain/manifest.mpd",    enc:false, keys:null },
+  clearkey: { url: "content/dash/clearkey/manifest.mpd", enc:true,  keys:{ [KEY_ID]: KEY } },
+  // Mismo contenido cifrado pero entregamos una clave INCORRECTA -> no descifra -> negro.
+  noekey:   { url: "content/dash/clearkey/manifest.mpd", enc:true,  keys:{ [KEY_ID]: "ffffffffffffffffffffffffffffffff" } },
+};
+
+const $ = (id) => document.getElementById(id);
+const logEl = $("log");
+function log(cls, msg){
+  const d = document.createElement("div");
+  d.className = cls;
+  const t = new Date().toISOString().substr(11,12);
+  d.textContent = `${t}  ${msg}`;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+  while (logEl.children.length > 400) logEl.removeChild(logEl.firstChild);
+}
+
+let player, ui, video;
+
+async function init(){
+  shaka.polyfill.installAll();
+  if (!shaka.Player.isBrowserSupported()){ log("t-err","Navegador no soportado."); return; }
+
+  video = $("video");
+  player = new shaka.Player();
+  await player.attach(video);
+  ui = new shaka.ui.Overlay(player, $("video-container"), video);
+
+  // --- Log de red: cada MPD y cada segmento (MSE en vivo) ---
+  player.getNetworkingEngine().registerRequestFilter((type, req) => {
+    const T = shaka.net.NetworkingEngine.RequestType;
+    const short = req.uris[0].split("/").pop();
+    if (type === T.MANIFEST) log("t-mpd", `MPD   ← ${short}`);
+    else if (type === T.SEGMENT) log("t-seg", `SEG   ← ${short}`);
+    else if (type === T.LICENSE) log("t-key", `LICENSE petición (clear-key)`);
+  });
+
+  // --- Eventos EME / DRM ---
+  player.addEventListener("error", (e)=> log("t-err", `ERROR ${e.detail.code}: ${e.detail.message||shaka.util.Error.Code[e.detail.code]||''}`));
+  video.addEventListener("encrypted", ()=> log("t-eme", `EME   evento 'encrypted' → el navegador pide licencia al CDM`));
+  video.addEventListener("waitingforkey", ()=> log("t-eme", `EME   'waitingforkey' → falta la clave, no puede descifrar`));
+  player.addEventListener("adaptation", updateStats);
+  player.addEventListener("variantchanged", ()=>{ updateStats(); log("t-info", `Adaptación → cambia de calidad`); });
+
+  document.querySelectorAll(".phase").forEach(btn=>{
+    btn.addEventListener("click", ()=> loadPhase(btn.dataset.phase));
+  });
+
+  setInterval(updateStats, 700);
+  loadPhase("plain");
+}
+
+async function loadPhase(name){
+  const cfg = MANIFESTS[name];
+  document.querySelectorAll(".phase").forEach(b=> b.classList.toggle("active", b.dataset.phase===name));
+  logEl.innerHTML = "";
+  log("t-info", `── Cargando FASE: ${name} ──`);
+
+  // Reset DRM config
+  player.resetConfiguration();
+  player.configure({ streaming:{ bufferingGoal: 8 } });
+
+  if (cfg.enc){
+    player.configure("drm.clearKeys", cfg.keys);
+    log("t-key", `clearKeys configurado: { ${Object.keys(cfg.keys)[0]} : ${Object.values(cfg.keys)[0]} }`);
+    $("s-enc").innerHTML = '<span class="badge enc">cifrado CENC</span>';
+    $("s-drm").textContent = "org.w3.clearkey";
+    $("s-kid").textContent = KEY_ID;
+    $("s-key").textContent = Object.values(cfg.keys)[0];
+  } else {
+    $("s-enc").innerHTML = '<span class="badge clear">en claro</span>';
+    $("s-drm").textContent = "ninguno";
+    $("s-kid").textContent = "—";
+    $("s-key").textContent = "—";
+  }
+  $("s-phase").textContent = name;
+
+  try {
+    await player.load(cfg.url);
+    log("t-info", `Manifest cargado y reproduciendo`);
+  } catch(e){
+    log("t-err", `load() falló: ${e.code} ${e.message||''}`);
+  }
+}
+
+function updateStats(){
+  if (!player || !video) return;
+  const st = player.getStats?.() || {};
+  const tracks = player.getVariantTracks?.() || [];
+  const active = tracks.find(t=>t.active);
+  if (active){
+    $("s-res").textContent = active.height ? `${active.width}×${active.height}` : "—";
+    $("s-br").textContent  = active.bandwidth ? `${(active.bandwidth/1000).toFixed(0)} kbps` : "—";
+  }
+  const buffered = video.buffered.length ? (video.buffered.end(video.buffered.length-1) - video.currentTime) : 0;
+  $("s-buf").textContent = `${buffered.toFixed(1)} s`;
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
